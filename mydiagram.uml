@@ -140,9 +140,6 @@ group Annonce
         end
     end
 end
-<<<<<<< HEAD
-@enduml
-=======
 
 group Notation
 	group Faire une notation
@@ -198,4 +195,3 @@ group Annonce
 end
 
 @enduml
->>>>>>> be919d4b9f5929c1c6108c04fdb4a78e8395123f
