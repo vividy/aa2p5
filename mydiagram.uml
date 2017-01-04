@@ -1,0 +1,201 @@
+@startuml
+
+title Sequence Diagram
+
+actor Utilisateur as usr
+participant Routeur as rtr
+participant Manager as man
+participant logManager as log
+participant mailManager as mail
+participant ConnectionManager as con
+participant paiementManager as paiement
+
+group Recherche
+	group informations sur les destinations
+		usr -> rtr : get("Recherche/destination/findByName", [destinationName])
+        rtr -> man : get([destinationName])
+        alt success
+        	man -> usr : onSuccess()
+        else Destination introuvable
+        	man -> usr : onError(WrongDestination)
+        else
+        	man -> usr : onError(Error)
+        end
+	end
+	group profil
+    	usr -> rtr : get("Recherche/user/findByName", [userName])
+        rtr -> man : get([userName])
+        alt success
+        	man -> usr : onSuccess()
+        else Utilisateur introuvable
+        	man -> usr : onError(WrongUser)
+        else
+        	man -> usr : onError(Error)
+        end
+    end
+end
+group Profil
+	group Visioner son profil
+		usr -> rtr : get(User)
+    	rtr -> man : get()
+        alt success
+        	man -> usr : onSuccess()
+        else utilisateur non connecté
+        	man -> usr : onError()
+        else
+        	man -> usr : onError(Error)
+        end
+    end
+end
+group Gestion de compte
+	group Se connecter
+    	usr -> rtr : put("account/connect", [userName], [password])
+        rtr -> man : put([userName], [password])
+        alt Utilisateur introuvable
+        	man -> usr : onError(WrongUser)
+        else
+            man -> con : userStatus([userId])
+            alt Utilisateur déjà connecté
+                con -> man : onSuccess(connected)
+                man --> usr : onError(alreadyConnected)
+            else
+                con -> man : onSuccess(disconnected)
+                man -> con : userConnect([userId])
+                alt success
+                	con -> man : onSuccess()
+                	man --> usr : onSuccess()
+                else
+                	con -> man : onError()
+                    man --> usr : onError()
+			end
+		end
+    end
+    group Se deconnecter
+    	usr -> rtr : put("account/disconnect", [userId])
+        rtr -> man : put([userId])
+        man -> con : userStatus([userId])
+        alt Utilisateur non connecté
+            con -> man : onSuccess(disconnected)
+            man --> usr : onError(DisconnectedUser)
+        else
+            con -> man : onSuccess(connected)
+            man -> con : userDisconnect([userId])
+            alt success
+            	con -> man : onSuccess()
+            	man --> usr : onSuccess()
+            else
+                con -> man : onError()
+                man --> usr : onError()
+            end
+		end
+    end
+end
+group Carnet de voyage
+	group Visionner le carnet d'un utilisateur
+    	usr -> rtr : put("travelBook", [userId])
+        rtr -> man : put([userId])
+        alt [userId] != null
+        	alt Utilisateur introuvable
+            	man --> usr : onError(WrongUser)
+        	else
+        		man --> usr : onSuccess(TravelBook)
+        	end
+         else
+         	man -> con : userStatus([userId])
+        	alt Utilisateur non connecté
+            	con -> man : onSuccess(disconnected)
+            	man --> usr : onError(DisconnectedUser)
+        	else
+            	con -> man : onSuccess(connected)
+                man --> usr : onSuccess(TravelBook)
+			end
+		end
+    end
+end
+group Mise en relation
+	group Envoyer un message
+    	usr -> rtr : put("message", [MessageInfo])
+        rtr -> man : put([MessageInfo])
+        alt Utilisateur Introuvable
+    		man --> usr : onError(WrongUser)
+        else
+        	man -> otherUser : onRequest(MessageInfo)
+        	alt success
+            	man --> usr : onSuccess()
+            else
+            	man --> usr : onError(Error)
+            end
+        end
+    end
+end
+group Annonce
+	group Accepter une visite
+    	man -> usr : onRequest([VisiteRequest])
+        usr -> rtr : post("visit/accept", [VisitRequest])
+        rtr -> man : post([VisitRequest])
+        alt [VisitRequest].accept != false && [VisitRequest].md5 == md5
+        	man --> usr : onSuccess()
+        else
+        	man --> usr : onError(error)
+        end
+    end
+end
+<<<<<<< HEAD
+@enduml
+=======
+
+group Notation
+	group Faire une notation
+		usr -> rtr : post("notation/new", [notationInfo])
+		rtr -> man : post([notationInfo])
+		alt success
+        	man -> usr : onSuccess()
+			man -> mail : Notation received [notationInfo]
+        else
+        	man -> usr : onError(Error)
+        end
+	end
+end
+
+group Gains
+	group Visionner ses gains
+		usr -> rtr : get("transaction/received/findByUserId", [userId])
+		rtr -> paiement : getReceived([userId])
+		alt success
+        	paiement -> usr : onSuccess([receivedTransactions])
+        else
+        	paiement -> usr : onError(Error)
+        end
+	end
+end
+group Mise en relation
+	group Envoyer un message
+    	usr -> rtr : put("message", [MessageInfo])
+        rtr -> man : put([MessageInfo])
+        alt Utilisateur Introuvable
+    		man --> usr : onError(WrongUser)
+        else
+        	man -> otherUser : onRequest(MessageInfo)
+        	alt success
+            	man --> usr : onSuccess()
+            else
+            	man --> usr : onError(Error)
+            end
+        end
+    end
+end
+group Annonce
+	group Accepter une visite
+    	man -> usr : onRequest([VisiteRequest])
+        usr -> rtr : post("visit/accept", [VisitRequest])
+        rtr -> man : post([VisitRequest])
+        alt [VisitRequest].accept != false && [VisitRequest].md5 == md5
+        	man --> usr : onSuccess()
+        else
+        	man --> usr : onError(error)
+        end
+    end
+end
+
+@enduml
+>>>>>>> be919d4b9f5929c1c6108c04fdb4a78e8395123f
