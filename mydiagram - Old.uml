@@ -7,79 +7,90 @@ participant Routeur as rtr
 participant Manager as man
 participant logManager as log
 participant mailManager as mail
-participant AccountManager as con
+participant ConnectionManager as con
 participant paiementManager as paiement
 
-group recherche
-	usr -> rtr : get(/search, [args])
-    rtr -> man : get([args])
-    alt success
-    	man -> usr : onSuccess(List[object]) 
-        note right : peut retourner une liste d'utilisateurs, de destinations et d'annonces
-    else Rien trouvé
-    	man -> usr : onError(NothingFound)
-    else
-    	man -> usr : onError(Error)
+group Recherche
+	group informations sur les destinations
+		usr -> rtr : get("Recherche/destination/findByName", [destinationName])
+        rtr -> man : get([destinationName])
+        alt success
+        	man -> usr : onSuccess()
+        else Destination introuvable
+        	man -> usr : onError(WrongDestination)
+        else
+        	man -> usr : onError(Error)
+        end
+	end
+	group profil
+    	usr -> rtr : get("Recherche/user/findByName", [userName])
+        rtr -> man : get([userName])
+        alt success
+        	man -> usr : onSuccess()
+        else Utilisateur introuvable
+        	man -> usr : onError(WrongUser)
+        else
+        	man -> usr : onError(Error)
+        end
+    end
+    group profil
+        usr -> rtr : get("Recherche/annonce/findByCity", [userName])
+        rtr -> man : get([userName])
+        alt success
+            man -> usr : onSuccess()
+        else Utilisateur introuvable
+            man -> usr : onError(WrongUser)
+        else
+            man -> usr : onError(Error)
+        end
     end
 end
 group Profil
 	group Visioner son profil
-		usr -> rtr : get(/profile)
+		usr -> rtr : get(User)
     	rtr -> man : get()
         alt success
-        	man -> usr : onSuccess(profil)
+        	man -> usr : onSuccess()
         else utilisateur non connecté
         	man -> usr : onError()
         else
         	man -> usr : onError(Error)
         end
     end
-    group Visioner un profil
-        usr -> rtr : get(/profile, [username])
-        rtr -> man : get([username])
-        alt success
-            man -> usr : onSuccess(profil)
-        else utilisateur non connecté
-            man -> usr : onError()
-        else
-            man -> usr : onError(Error)
-        end
-    end
 end
-group Authentification
+group Gestion de compte
 	group Se connecter
-    	usr -> rtr : post(/public/login, [userName], [password])
-        rtr -> man : post([userName], [password])
+    	usr -> rtr : put("account/connect", [userName], [password])
+        rtr -> man : put([userName], [password])
         alt Utilisateur introuvable
         	man -> usr : onError(WrongUser)
         else
-            man -> con : userStatus()
+            man -> con : userStatus([userId])
             alt Utilisateur déjà connecté
                 con -> man : onSuccess(connected)
                 man --> usr : onError(alreadyConnected)
             else
                 con -> man : onSuccess(disconnected)
-                man -> con : userConnect()
+                man -> con : userConnect([userId])
                 alt success
                 	con -> man : onSuccess()
                 	man --> usr : onSuccess()
                 else
                 	con -> man : onError()
                     man --> usr : onError()
-                end
 			end
 		end
     end
     group Se deconnecter
-    	usr -> rtr : post(/account/logout)
-        rtr -> man : post()
-        man -> con : userStatus()
+    	usr -> rtr : put("account/disconnect", [userId])
+        rtr -> man : put([userId])
+        man -> con : userStatus([userId])
         alt Utilisateur non connecté
             con -> man : onSuccess(disconnected)
             man --> usr : onError(DisconnectedUser)
         else
             con -> man : onSuccess(connected)
-            man -> con : userDisconnect(
+            man -> con : userDisconnect([userId])
             alt success
             	con -> man : onSuccess()
             	man --> usr : onSuccess()
@@ -92,16 +103,16 @@ group Authentification
 end
 group Carnet de voyage
 	group Visionner le carnet d'un utilisateur
-    	usr -> rtr : get(/travelbook, [username])
-        rtr -> man : get([username])
-        alt [username] != null
+    	usr -> rtr : put("travelBook", [userId])
+        rtr -> man : put([userId])
+        alt [userId] != null
         	alt Utilisateur introuvable
             	man --> usr : onError(WrongUser)
         	else
         		man --> usr : onSuccess(TravelBook)
         	end
          else
-         	man -> con : userStatus()
+         	man -> con : userStatus([userId])
         	alt Utilisateur non connecté
             	con -> man : onSuccess(disconnected)
             	man --> usr : onError(DisconnectedUser)
@@ -114,8 +125,8 @@ group Carnet de voyage
 end
 group Mise en relation
 	group Envoyer un message
-    	usr -> rtr : post(/visite/message, [MessageInfo])
-        rtr -> man : post([MessageInfo])
+    	usr -> rtr : put("message", [MessageInfo])
+        rtr -> man : put([MessageInfo])
         alt Utilisateur Introuvable
     		man --> usr : onError(WrongUser)
         else
@@ -131,7 +142,7 @@ end
 group Annonce
 	group Accepter une visite
     	man -> usr : onRequest([VisiteRequest])
-        usr -> rtr : post(/visit/accept, [VisitRequest])
+        usr -> rtr : post("visit/accept", [VisitRequest])
         rtr -> man : post([VisitRequest])
         alt [VisitRequest].accept != false && [VisitRequest].md5 == md5
         	man --> usr : onSuccess()
@@ -143,7 +154,7 @@ end
 
 group Notation
 	group Faire une notation
-		usr -> rtr : post(/notation/new, [notationInfo])
+		usr -> rtr : post("notation/new", [notationInfo])
 		rtr -> man : post([notationInfo])
 		alt success
         	man -> usr : onSuccess()
@@ -156,12 +167,10 @@ end
 
 group Gains
 	group Visionner ses gains
-		usr -> rtr : get(/transaction/received)
-		rtr -> paiement : getReceived()
+		usr -> rtr : get("transaction/received/findByUserId", [userId])
+		rtr -> paiement : getReceived([userId])
 		alt success
         	paiement -> usr : onSuccess([receivedTransactions])
-        else utilisateur non connécté
-            paiement -> usr : onError(AuthError)
         else
         	paiement -> usr : onError(Error)
         end
@@ -169,8 +178,8 @@ group Gains
 end
 group Mise en relation
 	group Envoyer un message
-    	usr -> rtr : post(/visite/message, [MessageInfo])
-        rtr -> man : post([MessageInfo])
+    	usr -> rtr : put("message", [MessageInfo])
+        rtr -> man : put([MessageInfo])
         alt Utilisateur Introuvable
     		man --> usr : onError(WrongUser)
         else
@@ -180,6 +189,18 @@ group Mise en relation
             else
             	man --> usr : onError(Error)
             end
+        end
+    end
+end
+group Annonce
+	group Accepter une visite
+    	man -> usr : onRequest([VisiteRequest])
+        usr -> rtr : post("visit/accept", [VisitRequest])
+        rtr -> man : post([VisitRequest])
+        alt [VisitRequest].accept != false && [VisitRequest].md5 == md5
+        	man --> usr : onSuccess()
+        else
+        	man --> usr : onError(error)
         end
     end
 end
